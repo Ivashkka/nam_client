@@ -15,25 +15,22 @@ class AImodels(enum.Enum):
 #basic classes for user, response, request and session:
 
 class NAMuser:
-    __slots__ = ['type', 'name', 'pass_hash', 'uuid']
-    def __init__(self, name=None, pass_hash=None, uuid=None):
+    __slots__ = ['type', 'name', 'pass_hash']
+    def __init__(self, name=None, pass_hash=None):
         self.type = NAMDtype.NAMuser
         self.name = name
         self.pass_hash = pass_hash
-        self.uuid = uuid
 
 class AIrequest:
-    __slots__ = ['message', 'uuid', 'type']
-    def __init__(self, message=None, uuid=None):
+    __slots__ = ['message', 'type']
+    def __init__(self, message=None):
         self.message = message
-        self.uuid = uuid
         self.type = NAMDtype.AIrequest
 
 class AIresponse:
-    __slots__ = ['message', 'uuid', 'type']
-    def __init__(self, message=None, uuid=None):
+    __slots__ = ['message', 'type']
+    def __init__(self, message=None):
         self.message = message
-        self.uuid = uuid
         self.type = NAMDtype.AIresponse
 
 class NAMSesSettings:
@@ -43,21 +40,24 @@ class NAMSesSettings:
         self.type = NAMDtype.NAMSesSettings
 
 def to_dict(obj): #convert any class object to dictionary
-    if not hasattr(obj, 'type'): return
+    if not hasattr(obj, 'type'): return None
     dict = {}
     for field in obj.__slots__:
-        dict[field] = getattr(obj, field)
         if field == 'type' or field == 'model':
             dict[field] = getattr(obj, field).value
+            continue
+        dict[field] = getattr(obj, field)
     return dict
 
 def from_dict(dict): #create class object from given dictionary
-    if not 'type' in dict: return
+    if not 'type' in dict: return None
     obj = globals()[dict['type']]()
     for field in dict:
-        setattr(obj, field, dict[field])
         if field == 'type':
             setattr(obj, field, NAMDtype(dict[field]))
+            continue
         if field == 'model':
             setattr(obj, field, AImodels(dict[field]))
+            continue
+        setattr(obj, field, dict[field])
     return obj

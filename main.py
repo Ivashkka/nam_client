@@ -1,4 +1,3 @@
-import uuid
 import datastruct
 import bcrypt
 from getpass import getpass
@@ -12,39 +11,88 @@ class _NAMclientcore(object):
 
     @staticmethod
     def start_core():
-        client_settings = dload.load_yaml("conf.yaml")["nam_client"]
-        connect.init_client(client_settings)
-        _NAMclientcore.user = _NAMclientcore.get_auth_data()
-        _NAMclientcore.settings = _NAMclientcore.get_ai_settings()
+        _NAMclientcore.init_connect()
+        _NAMclientcore.user = _NAMclientcore.load_auth_data()
+        _NAMclientcore.settings = _NAMclientcore.load_ai_settings()
         connect.connect_to_srv(auth_data=datastruct.to_dict(_NAMclientcore.user), settings=datastruct.to_dict(_NAMclientcore.settings))
         _NAMclientcore.serve_client()
 
     @staticmethod
+    def init_connect():
+        connect_settings = dload.load_yaml("conf.yaml")["nam_client"]["connect"]
+        connect.init_client(connect_settings)
+
+    @staticmethod
     def serve_client():
         while True:
-            message = _NAMclientcore.get_message()
-            connect.send_data(datastruct.to_dict(message))
-            response = datastruct.from_dict(connect.get_data(1024))
-            print(response.message)
+            command = input("nam> ")
+            command_args = command.split(" ")
+            match command_args[0]:
+                case "-":
+                    if len(command_args) < 2:
+                        print("wrong command, try help")
+                        continue
+                    match command_args[1]:
+                        case "change":
+                            if len(command_args) < 3:
+                                print("specify what to change, or try help")
+                                continue
+                            match command_args[2]:
+                                case "model":
+                                    _NAMclientcore.change_model()
+                                case _:
+                                    print(f"wrong argument {command_args[2]}, try help")
+                        case "save":
+                            _NAMclientcore.save_all_settings()
+                        case "info":
+                            _NAMclientcore.show_info()
+                        case "help":
+                            print("change model - change model for ai\nsave - save all settings\ninfo - show all info\nhelp - show this info")
+                        case _:
+                            print(f"wrong argument {command_args[1]}, try help")
+                case _:
+                    connect.send_data(datastruct.to_dict(datastruct.AIrequest(command)))
+                    response = datastruct.from_dict(connect.get_data(1024))
+                    if response == None: continue
+                    print(response.message)
 
     @staticmethod
     def encode_passwd(passwd):
         return bcrypt.hashpw(passwd, _NAMclientcore.salt).decode()
 
     @staticmethod
-    def get_auth_data():
-        user_name = input("user_name: ")
-        user_pass = getpass("user_pass: ").encode(encoding=connect.get_encoding())
-        return datastruct.NAMuser(name=user_name, pass_hash=_NAMclientcore.encode_passwd(user_pass), uuid=None)
+    def load_auth_data():
+        auth = dload.load_json("auth.json")
+        if auth != None:
+            usr = datastruct.from_dict(auth)
+            return usr
+        else:
+            print("enter auth data:")
+            user_name = input("user_name: ")
+            user_pass = getpass(f"password for user {user_name}: ").encode(encoding=connect.get_encoding())
+            print("to save auth data, try '- save' or '- help' for more info")
+            return datastruct.NAMuser(name=user_name, pass_hash=_NAMclientcore.encode_passwd(user_pass))
 
     @staticmethod
-    def get_ai_settings():
+    def load_ai_settings():
+        ai_settings = dload.load_yaml("conf.yaml")["ai_settings"]
+        return datastruct.NAMSesSettings(model=datastruct.AImodels(ai_settings["model"]))
+    
+    @staticmethod
+    def change_model():
         model = input("ai_model (gpt_35_turbo / gpt_35_long / gpt_4 / gpt_4_turbo): ")
-        return datastruct.NAMSesSettings(model=datastruct.AImodels(model))
+        _NAMclientcore.settings.model = datastruct.AImodels(model)
+        connect.send_data(datastruct.to_dict(_NAMclientcore.settings))
 
     @staticmethod
-    def get_message():
-       return datastruct.AIrequest(input("request: "), uuid.uuid4().hex)
+    def save_all_settings():
+        dload.save_json("auth.json", datastruct.to_dict(_NAMclientcore.user))
+        dload.yaml_change_single("conf.yaml", ["ai_settings","model"], _NAMclientcore.settings.model.value)
+
+    @staticmethod
+    def show_info():
+        print(f"logged in as {_NAMclientcore.user.name}")
+        print(f"current model: {_NAMclientcore.settings.model.value}")
 
 def main():
     _NAMclientcore.start_core()
