@@ -3,11 +3,15 @@ import bcrypt
 from getpass import getpass
 from dataload import dload
 from intapi import connect
+from threading import Thread
+from threading import Event
 
 class _NAMclientcore(object):
     salt = b'$2b$12$ET4oX.YJCrU9OX92KWW2Ku'
     user = None
     settings = None
+    responces_thread = None
+    stop_event = Event()
 
     @staticmethod
     def start_core():
@@ -15,6 +19,8 @@ class _NAMclientcore(object):
         _NAMclientcore.user = _NAMclientcore.load_auth_data()
         _NAMclientcore.settings = _NAMclientcore.load_ai_settings()
         connect.connect_to_srv(auth_data=datastruct.to_dict(_NAMclientcore.user), settings=datastruct.to_dict(_NAMclientcore.settings))
+        _NAMclientcore.responces_thread = Thread(target=_NAMclientcore.serve_responces, args=[])
+        _NAMclientcore.responces_thread.start()
         _NAMclientcore.serve_client()
 
     @staticmethod
@@ -23,8 +29,21 @@ class _NAMclientcore(object):
         connect.init_client(connect_settings)
 
     @staticmethod
+    def serve_responces():
+        while True:
+            if _NAMclientcore.stop_event.is_set(): break
+            response = datastruct.from_dict(connect.get_data(1024))
+            if response == None: continue
+            if response.type == datastruct.NAMDtype.AIresponse:
+                print(response.message)
+
+    @staticmethod
     def serve_client():
         while True:
+            if _NAMclientcore.stop_event.is_set():
+                _NAMclientcore.responces_thread.join()
+                connect.close_conn()
+                break
             command = input("nam> ")
             command_args = command.split(" ")
             match command_args[0]:
@@ -46,15 +65,18 @@ class _NAMclientcore(object):
                             _NAMclientcore.save_all_settings()
                         case "info":
                             _NAMclientcore.show_info()
+                        case "stop":
+                            print("nam client is stopping...")
+                            _NAMclientcore.stop_event.set()
                         case "help":
                             print("change model - change model for ai\nsave - save all settings\ninfo - show all info\nhelp - show this info")
                         case _:
                             print(f"wrong argument {command_args[1]}, try help")
+                case "":
+                    pass
                 case _:
+                    print("wait until chat gpt answers...")
                     connect.send_data(datastruct.to_dict(datastruct.AIrequest(command)))
-                    response = datastruct.from_dict(connect.get_data(1024))
-                    if response == None: continue
-                    print(response.message)
 
     @staticmethod
     def encode_passwd(passwd):

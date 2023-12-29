@@ -50,7 +50,7 @@ def to_dict(obj): #convert any class object to dictionary
     return dict
 
 def from_dict(dict): #create class object from given dictionary
-    if not 'type' in dict: return None
+    if dict == None or not 'type' in dict: return None
     obj = globals()[dict['type']]()
     for field in dict:
         if field == 'type':
