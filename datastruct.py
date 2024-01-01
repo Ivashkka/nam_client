@@ -5,6 +5,11 @@ class NAMDtype(enum.Enum): # primary key to transfer data between server and cli
     AIresponse      =   "AIresponse"
     NAMuser         =   "NAMuser"
     NAMSesSettings  =   "NAMSesSettings"
+    NAMcommand      =   "NAMcommand"
+
+class NAMCtype(enum.Enum):
+    ContextReset    =   "ContextReset"
+    TestConn        =   "TestConn"
 
 class AImodels(enum.Enum):
     GPT35turbo  =   "gpt_35_turbo"
@@ -39,11 +44,17 @@ class NAMSesSettings:
         self.model = model
         self.type = NAMDtype.NAMSesSettings
 
+class NAMcommand:
+    __slots__ = ['command', 'type']
+    def __init__(self, command=None):
+        self.command = command
+        self.type = NAMDtype.NAMcommand
+
 def to_dict(obj): #convert any class object to dictionary
     if not hasattr(obj, 'type'): return None
     dict = {}
     for field in obj.__slots__:
-        if field == 'type' or field == 'model':
+        if field == 'type' or field == 'model' or field == 'command':
             dict[field] = getattr(obj, field).value
             continue
         dict[field] = getattr(obj, field)
@@ -58,6 +69,9 @@ def from_dict(dict): #create class object from given dictionary
             continue
         if field == 'model':
             setattr(obj, field, AImodels(dict[field]))
+            continue
+        if field == 'command':
+            setattr(obj, field, NAMCtype(dict[field]))
             continue
         setattr(obj, field, dict[field])
     return obj

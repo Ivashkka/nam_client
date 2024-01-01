@@ -5,6 +5,7 @@ from dataload import dload
 from intapi import connect
 from threading import Thread
 from threading import Event
+import signal
 
 class _NAMclientcore(object):
     salt = b'$2b$12$ET4oX.YJCrU9OX92KWW2Ku'
@@ -15,6 +16,7 @@ class _NAMclientcore(object):
 
     @staticmethod
     def start_core():
+        signal.signal(signal.SIGTERM, _NAMclientcore.sigterm_handler)
         _NAMclientcore.init_connect()
         _NAMclientcore.user = _NAMclientcore.load_auth_data()
         _NAMclientcore.settings = _NAMclientcore.load_ai_settings()
@@ -22,6 +24,11 @@ class _NAMclientcore(object):
         _NAMclientcore.responces_thread = Thread(target=_NAMclientcore.serve_responces, args=[])
         _NAMclientcore.responces_thread.start()
         _NAMclientcore.serve_client()
+
+    @staticmethod
+    def sigterm_handler(signal, frame):
+        print('Received SIGTERM. Exiting gracefully...')
+        _NAMclientcore.stop_event.set()
 
     @staticmethod
     def init_connect():
@@ -32,7 +39,7 @@ class _NAMclientcore(object):
     def serve_responces():
         while True:
             if _NAMclientcore.stop_event.is_set(): break
-            response = datastruct.from_dict(connect.get_data(1024))
+            response = datastruct.from_dict(connect.get_data(4096))
             if response == None: continue
             if response.type == datastruct.NAMDtype.AIresponse:
                 print(response.message)
@@ -61,6 +68,14 @@ class _NAMclientcore(object):
                                     _NAMclientcore.change_model()
                                 case _:
                                     print(f"wrong argument {command_args[2]}, try help")
+                        case "delete":
+                            if len(command_args) < 3:
+                                print("specify what to delete, or try help")
+                                continue
+                            if "con" in command_args[2]:
+                                _NAMclientcore.delete_context()
+                            else:
+                                print(f"wrong argument {command_args[2]}, try help")
                         case "save":
                             _NAMclientcore.save_all_settings()
                         case "info":
@@ -75,7 +90,6 @@ class _NAMclientcore(object):
                 case "":
                     pass
                 case _:
-                    print("wait until chat gpt answers...")
                     connect.send_data(datastruct.to_dict(datastruct.AIrequest(command)))
 
     @staticmethod
@@ -115,6 +129,10 @@ class _NAMclientcore(object):
     def show_info():
         print(f"logged in as {_NAMclientcore.user.name}")
         print(f"current model: {_NAMclientcore.settings.model.value}")
+
+    @staticmethod
+    def delete_context():
+        connect.send_data(datastruct.to_dict(datastruct.NAMcommand(datastruct.NAMCtype.ContextReset)))
 
 def main():
     _NAMclientcore.start_core()

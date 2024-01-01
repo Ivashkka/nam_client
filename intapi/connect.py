@@ -28,9 +28,9 @@ class _NAMclient(object): #basic clientside networking structure
         if not _NAMclient.init: return {"corrupted": "client was not inited"}
         try:
             return json.loads(_NAMclient.client_sock.recv(bytes).decode())
-        except Exception as e:
-            return None
-    
+        except socket.timeout:
+            pass
+
     @staticmethod
     def send_data(data):
         if not _NAMclient.init: return
