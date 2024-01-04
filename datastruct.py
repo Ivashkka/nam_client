@@ -52,26 +52,26 @@ class NAMcommand:
 
 def to_dict(obj): #convert any class object to dictionary
     if not hasattr(obj, 'type'): return None
-    dict = {}
+    obj_dict = {}
     for field in obj.__slots__:
         if field == 'type' or field == 'model' or field == 'command':
-            dict[field] = getattr(obj, field).value
+            obj_dict[field] = getattr(obj, field).value
             continue
-        dict[field] = getattr(obj, field)
-    return dict
+        obj_dict[field] = getattr(obj, field)
+    return obj_dict
 
-def from_dict(dict): #create class object from given dictionary
-    if dict == None or not 'type' in dict: return None
-    obj = globals()[dict['type']]()
-    for field in dict:
+def from_dict(obj_dict): #create class object from given dictionary
+    if type(obj_dict) is not dict or not 'type' in obj_dict: return None
+    obj = globals()[obj_dict['type']]()
+    for field in obj_dict:
         if field == 'type':
-            setattr(obj, field, NAMDtype(dict[field]))
+            setattr(obj, field, NAMDtype(obj_dict[field]))
             continue
         if field == 'model':
-            setattr(obj, field, AImodels(dict[field]))
+            setattr(obj, field, AImodels(obj_dict[field]))
             continue
         if field == 'command':
-            setattr(obj, field, NAMCtype(dict[field]))
+            setattr(obj, field, NAMCtype(obj_dict[field]))
             continue
-        setattr(obj, field, dict[field])
+        setattr(obj, field, obj_dict[field])
     return obj
