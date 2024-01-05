@@ -18,6 +18,8 @@ class _NAMclientcore(object):
     stop_event = Event()
     reconnect_event = Event()
 
+    INTERACT = True #will change in future
+
     @staticmethod
     def start_core():
         signal.signal(signal.SIGTERM, _NAMclientcore.sigterm_handler)
@@ -75,6 +77,7 @@ class _NAMclientcore(object):
                 _NAMclientcore.responces_thread.join()
                 if _NAMclientcore.reconnect_thread != None: _NAMclientcore.reconnect_thread.join()
                 connect.close_conn()
+                if not _NAMclientcore.INTERACT: connect.close_local_sock()
                 print("done")
                 break
             if _NAMclientcore.reconnect_event.is_set():
@@ -83,33 +86,38 @@ class _NAMclientcore(object):
                     connect.open_new_sock()
                     _NAMclientcore.reconnect_thread = Thread(target=_NAMclientcore.recon_async, args=[])
                     _NAMclientcore.reconnect_thread.start()
-            print("nam> ", end="")
-            command = input()
+            if not _NAMclientcore.INTERACT:
+                ctl_conn = connect.get_ctl_connect()
+                command = connect.get_ctl_command(ctl_conn)
+            else:
+                print("nam> ", end="")
+                command = input()
             command_args = command.split(" ")
             excode = None
+            answer = ""
             match command_args[0]:
                 case "-":
                     if len(command_args) < 2:
-                        print("wrong command, try help")
+                        answer = "wrong command, try help"
                         continue
                     match command_args[1]:
                         case "change":
                             if len(command_args) < 3:
-                                print("specify what to change, or try help")
+                                answer = "specify what to change, or try help"
                                 continue
                             match command_args[2]:
                                 case "model":
                                     excode = _NAMclientcore.change_model()
                                 case _:
-                                    print(f"wrong argument {command_args[2]}, try help")
+                                    answer = f"wrong argument {command_args[2]}, try help"
                         case "delete":
                             if len(command_args) < 3:
-                                print("specify what to delete, or try help")
+                                answer = "specify what to delete, or try help"
                                 continue
                             if "con" in command_args[2]:
                                 excode = _NAMclientcore.delete_context()
                             else:
-                                print(f"wrong argument {command_args[2]}, try help")
+                                answer = f"wrong argument {command_args[2]}, try help"
                         case "save":
                             _NAMclientcore.save_all_settings()
                         case "info":
@@ -118,18 +126,38 @@ class _NAMclientcore(object):
                             print("nam client is stopping...")
                             _NAMclientcore.stop_event.set()
                         case "recon":
-                            print("reconnecting to the server...")
+                            answer = "reconnecting to the server..."
                             _NAMclientcore.reconnect_event.set()
+                        case "file":
+                            reqlist = []
+                            req = ""
+                            for i in range(2, len(command_args)):
+                                fdata = dload.load_txt(command_args[i])
+                                if fdata != None:
+                                    req += f"{command_args[i]} content:\n{fdata}\n\n"
+                                else:
+                                    reqlist = command_args[i:]
+                                    break
+                            if req == "":
+                                answer = "you need to specify at least one file"
+                            else:
+                                req += f"\nAnswer my question taking into account the contents of the files. My request: {" ".join(reqlist)}"
+                                excode = connect.send_data(datastruct.to_dict(datastruct.AIrequest(req)))
                         case "help":
-                            print("change model - change model for ai\ndelete con - delete context\nsave - save all settings\ninfo - show all info\nrecon - reconnect to server\nstop - stop client\nhelp - show this info")
+                            answer = "change model - change model for ai\ndelete con - delete context\nfile <filename> <file2name> <...> text of your request - include file contents to request\nsave - save all settings\ninfo - show all info\nrecon - reconnect to server\nstop - stop client\nhelp - show this info"
                         case _:
-                            print(f"wrong argument {command_args[1]}, try help")
+                            answer = f"wrong argument {command_args[1]}, try help"
                 case "":
                     pass
                 case _:
                     excode = connect.send_data(datastruct.to_dict(datastruct.AIrequest(command)))
             if excode == connect.NAMconcode.Fail:
                 _NAMclientcore.reconnect_event.set()
+            if not _NAMclientcore.INTERACT:
+                connect.send_ctl_answer(ctl_conn, answer)
+                connect.close_ctl_conn(ctl_conn)
+            else:
+                if answer != "": print(answer)
 
     @staticmethod
     def encode_passwd(passwd):
