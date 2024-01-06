@@ -17,10 +17,11 @@ class _NAMclient(object): #basic clientside networking structure
     server_ip = None
     server_port = None
 
-    INTERACT = True #will change in future
+    INTERACT = False #will change in future
 
     @staticmethod
-    def init_socket(server_ip, server_port, encoding, unix_socket_path): #create socket
+    def init_socket(server_ip, server_port, encoding, unix_socket_path, interact): #create socket
+        _NAMclient.INTERACT = interact
         _NAMclient.client_sock = socket.socket()
         _NAMclient.client_sock.settimeout(3)
         if not _NAMclient.INTERACT:
@@ -87,7 +88,7 @@ class _NAMclient(object): #basic clientside networking structure
         try:
             return ctl_conn.recv(bytes).decode()
         except Exception as e:
-            return None
+            return NAMconcode.Fail
     
     @staticmethod
     def send_ctl_answer(ctl_conn, data):
@@ -95,7 +96,7 @@ class _NAMclient(object): #basic clientside networking structure
         try:
             ctl_conn.send(data.encode(encoding=_NAMclient.encoding))
         except Exception as e:
-            return None
+            return NAMconcode.Fail
         
     def close_ctl_conn(ctl_conn):
         if not _NAMclient.init: return None
@@ -110,8 +111,8 @@ class _NAMclient(object): #basic clientside networking structure
             if os.path.exists(_NAMclient.uspath):
                 raise Exception(f"can't remove old {_NAMclient.uspath} socket!")
 
-def init_client(client_settings):
-    _NAMclient.init_socket(client_settings["server_ip"], client_settings["server_port"], client_settings["encoding"], client_settings["unix_socket_path"])
+def init_client(client_settings, interact):
+    _NAMclient.init_socket(client_settings["server_ip"], client_settings["server_port"], client_settings["encoding"], client_settings["unix_socket_path"], interact)
 
 def connect_to_srv(auth_data, settings):
     return _NAMclient.connect_to_srv(auth_data, settings)
@@ -134,11 +135,11 @@ def close_local_sock():
 def get_ctl_connect():
     return _NAMclient.get_ctl_connect()
 
-def send_ctl_answer():
-    _NAMclient.send_ctl_answer()
+def send_ctl_answer(ctl_conn, data):
+    _NAMclient.send_ctl_answer(ctl_conn, data)
 
-def get_ctl_command():
-    return _NAMclient.get_ctl_command()
+def get_ctl_command(ctl_conn, bytes):
+    return _NAMclient.get_ctl_command(ctl_conn, bytes)
 
 def close_ctl_conn():
     return _NAMclient.close_ctl_conn()
