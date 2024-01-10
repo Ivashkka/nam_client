@@ -1,3 +1,5 @@
+########################## datastruct.py ##########################
+
 import enum
 
 class NAMDtype(enum.Enum): # primary key to transfer data between server and client
@@ -6,20 +8,30 @@ class NAMDtype(enum.Enum): # primary key to transfer data between server and cli
     NAMuser         =   "NAMuser"
     NAMSesSettings  =   "NAMSesSettings"
     NAMcommand      =   "NAMcommand"
+    NAMexcode       =   "NAMexcode"
 
-class NAMCtype(enum.Enum):
+class NAMCtype(enum.Enum): # Types of commands between nam srv and nam client
     ContextReset    =   "ContextReset"
     TestConn        =   "TestConn"
 
-class AImodels(enum.Enum):
+class AImodels(enum.Enum): # supported ai models
     GPT35turbo  =   "gpt_35_turbo"
     GPT35long   =   "gpt_35_long"
     GPT4        =   "gpt_4"
     GPT4turbo   =   "gpt_4_turbo"
 
-#basic classes for user, response, request and session:
+class NAMEtype(enum.Enum): # main exit codes
+    Success     =   0
+    IntFail     =   1
+    ConTimeOut  =   2
+    SrvConFail  =   3
+    IntConFail  =   4
+    ClientFail  =   5
+    SrvFail     =   6
+    Deny        =   7
+    InitConnFail=   8
 
-class NAMuser:
+class NAMuser: # auth data
     __slots__ = ['type', 'name', 'pass_hash']
     def __init__(self, name=None, pass_hash=None):
         self.type = NAMDtype.NAMuser
@@ -50,11 +62,17 @@ class NAMcommand:
         self.command = command
         self.type = NAMDtype.NAMcommand
 
+class NAMexcode:
+    __slots__ = ['code', 'type']
+    def __init__(self, code=None):
+        self.code = code
+        self.type = NAMDtype.NAMexcode
+
 def to_dict(obj): #convert any class object to dictionary
     if not hasattr(obj, 'type'): return None
     obj_dict = {}
     for field in obj.__slots__:
-        if field == 'type' or field == 'model' or field == 'command':
+        if field == 'type' or field == 'model' or field == 'command' or field == 'code':
             obj_dict[field] = getattr(obj, field).value
             continue
         obj_dict[field] = getattr(obj, field)
@@ -72,6 +90,9 @@ def from_dict(obj_dict): #create class object from given dictionary
             continue
         if field == 'command':
             setattr(obj, field, NAMCtype(obj_dict[field]))
+            continue
+        if field == 'code':
+            setattr(obj, field, NAMEtype(obj_dict[field]))
             continue
         setattr(obj, field, obj_dict[field])
     return obj
