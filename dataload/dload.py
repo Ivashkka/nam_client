@@ -42,7 +42,7 @@ class _JSONload(object): # class for working with json files
         except Exception as e:
             return False
 
-class _TXTload(object): # class for working with all txt files
+class _TXTload(object): # class for working with all text files
     @staticmethod
     def load(path):
         try:

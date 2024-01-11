@@ -22,14 +22,14 @@ class AImodels(enum.Enum): # supported ai models
 
 class NAMEtype(enum.Enum): # main exit codes
     Success     =   0
-    IntFail     =   1
+    IntFail     =   1 # Internal Fail
     ConTimeOut  =   2
-    SrvConFail  =   3
-    IntConFail  =   4
-    ClientFail  =   5
-    SrvFail     =   6
+    SrvConFail  =   3 # Failed to comunicate with server
+    IntConFail  =   4 # Failed to comunicate via unix named socket
+    ClientFail  =   5 # Server's reply about wrong data from client
+    SrvFail     =   6 # wrong data from server or IntFail on server
     Deny        =   7
-    InitConnFail=   8
+    InitConnFail=   8 # Fail in connect.py init_socket
 
 class NAMuser: # auth data
     __slots__ = ['type', 'name', 'pass_hash']

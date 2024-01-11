@@ -13,7 +13,7 @@
 
 # arguments: python3 main.py <interact> <configs_path>
 # if no <interact> specified, the client starts in the interact mode
-# if no <configs_path> specified, the client looking for configs in current 
+# if no <configs_path> specified, the client looking for configs in current folder
 
 # to start client in interact mode use `python3 main.py interact .`
 
@@ -30,7 +30,7 @@
 # conf_keys dict used to check conf.yaml correctness
 # commads_dict used to execute related to client commands functions by their name
 # for ex: to add command `- show something` to client, you need to add "show something":"show_something"
-# to commads_dict, where show_something is actial name of _NAMclientcore function
+# to commads_dict, where show_something is actual name of _NAMclientcore function
 
 # _NAMclientcore uses NAMEtype (NAM execution type) enum to take care of functions execute codes.
 # there are other execution codes for other modules, like intapi.connect.py
@@ -41,6 +41,9 @@
 # responses_thread is thread for receiving data from server in background, so
 # user can call commands while waiting for response of ai
 # test_conn_thread is thread for testing connection in background
+
+# stop_event to stop client
+# reconnect_event to start reconnect process
 
 # lock_srv_in_out() and free_srv_in_out() used to make shure
 # that no other thread is listening for or sending data to the server
@@ -235,7 +238,7 @@ class _NAMclientcore(object):
                 elif obj.type == datastruct.NAMDtype.NAMcommand:
                     if obj.command == datastruct.NAMCtype.TestConn and nothing_extra:
                         print("recursive call")
-                        return _NAMclientcore.get_srv_data()
+                        return _NAMclientcore.get_srv_data(nothing_extra)
                     else: return obj
                 else: return obj
             else: return datastruct.NAMEtype.SrvFail
@@ -334,8 +337,8 @@ class _NAMclientcore(object):
             _NAMclientcore.send_output("enter auth data:")
             user_name = _NAMclientcore.get_input("user_name: ")
             user_pass = _NAMclientcore.get_input(f"password for user {user_name}: ")
-            if user_name == connect.NAMconcode.Timeout or user_pass == connect.NAMconcode.Timeout: continue
-            if user_name != connect.NAMconcode.Fail and user_name != "" and user_pass != connect.NAMconcode.Fail and user_pass != "":
+            if user_name == datastruct.NAMEtype.ConTimeOut or user_pass == datastruct.NAMEtype.ConTimeOut: continue
+            if user_name != datastruct.NAMEtype.IntConFail and user_name != "" and user_pass != datastruct.NAMEtype.IntConFail and user_pass != "":
                 break
         _NAMclientcore.send_output("to save auth data, try '- save' or '- help' for more info")
         return datastruct.NAMuser(name=user_name, pass_hash=_NAMclientcore.encode_passwd(user_pass.encode(encoding=connect.get_encoding())))
@@ -395,6 +398,7 @@ class _NAMclientcore(object):
                 continue
             _NAMclientcore.test_conn_thread_idle = False
             if _NAMclientcore.reconnect_event.is_set(): continue
+            time.sleep(1)
             if not _NAMclientcore.connection_is_alive() and not _NAMclientcore.reconnect_event.is_set():
                     _NAMclientcore.reconnect_to_srv()
             for i in range(0, 10):
@@ -403,7 +407,7 @@ class _NAMclientcore(object):
                 time.sleep(2)
 
     @staticmethod
-    def serve_client():
+    def serve_client(): # main loop
         sock_was_connected = True
         while True:
             time.sleep(2)
@@ -420,16 +424,18 @@ class _NAMclientcore(object):
                     connect.close_conn()
                     connect.open_new_sock()
                     sock_was_connected = False
+                    time.sleep(1)
                 excode = _NAMclientcore.connect_to_srv()
                 if excode == datastruct.NAMEtype.Success:
                     _NAMclientcore.reconnect_event.clear()
                     sock_was_connected = True
                     _NAMclientcore.send_output("reconnected")
-                if excode == datastruct.NAMEtype.Deny or excode == datastruct.NAMEtype.SrvFail:
+                if excode == datastruct.NAMEtype.Deny or excode == datastruct.NAMEtype.SrvFail or excode == datastruct.NAMEtype.IntFail:
                     sock_was_connected = True
+                    print("rebinding socket")
 
 
-########################## Client commands implementations ##########################
+########################## Serve inputed command ##########################
 
     @staticmethod
     def direct_interaction():
@@ -469,6 +475,7 @@ class _NAMclientcore(object):
         return None
 
 
+########################## Client commands implementations ##########################
 
     @staticmethod
     def show_help():
@@ -502,8 +509,8 @@ help - show this info""")
             _NAMclientcore.send_output("enter auth data:")
             user_name = _NAMclientcore.get_input("user_name: ")
             user_pass = _NAMclientcore.get_input(f"password for user {user_name}: ")
-            if user_name == connect.NAMconcode.Timeout or user_pass == connect.NAMconcode.Timeout: continue
-            if user_name != connect.NAMconcode.Fail and user_name != "" and user_pass != connect.NAMconcode.Fail and user_pass != "":
+            if user_name == datastruct.NAMEtype.ConTimeOut or user_pass == datastruct.NAMEtype.ConTimeOut: continue
+            if user_name != datastruct.NAMEtype.IntConFail and user_name != "" and user_pass != datastruct.NAMEtype.IntConFail and user_pass != "":
                 break
         _NAMclientcore.send_output("to save auth data, try '- save' or '- help' for more info")
         _NAMclientcore.user = datastruct.NAMuser(name=user_name, pass_hash=_NAMclientcore.encode_passwd(user_pass.encode(encoding=connect.get_encoding())))
