@@ -69,7 +69,7 @@ class _NAMclientcore(object):
     conf_is_valid   =   False
     user            =   None            # auth data
     settings        =   None            # session settings (for now just ai model)
-    current_output_unix_socket = None   # unix named socket used in background mode (NOT WORKING)
+    current_output_ctl_conn = None   # unix named socket used in background mode (NOT WORKING)
 
     input_thread            =   None    # inputs from user
     responses_thread        =   None    # responses from server
@@ -166,11 +166,11 @@ class _NAMclientcore(object):
     @staticmethod
     def send_output(data): # send output to user depending on running mode (print if interact and unix named socket if bg)
         if data == None or data == "": return datastruct.NAMEtype.IntFail
-        if _NAMclientcore.current_output_unix_socket == None:
+        if _NAMclientcore.INTERACT == True:
             print(data)
             return datastruct.NAMEtype.Success
-        else:
-            sendcode = connect.send_ctl_answer(_NAMclientcore.current_output_unix_socket, data)
+        elif _NAMclientcore.current_output_ctl_conn != None:
+            sendcode = connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, data)
             match sendcode:
                 case connect.NAMconcode.Timeout:
                     return datastruct.NAMEtype.ConTimeOut
@@ -182,14 +182,14 @@ class _NAMclientcore(object):
     @staticmethod
     def get_input(prompt = "nam> "):  # get input from user depending on running mode (input if interact and unix named socket if bg)
         if prompt == None: return datastruct.NAMEtype.IntFail
-        if _NAMclientcore.current_output_unix_socket == None:
+        if _NAMclientcore.INTERACT == True:
             print(prompt, end="")
             usr_input = input()
             return usr_input
-        else:
+        elif _NAMclientcore.current_output_ctl_conn != None:
             sendcode = _NAMclientcore.send_output(f"IEN {prompt}")
             if sendcode != datastruct.NAMEtype.Success: return sendcode
-            usr_input = connect.get_ctl_command(_NAMclientcore.current_output_unix_socket, 4096)
+            usr_input = connect.get_ctl_command(_NAMclientcore.current_output_ctl_conn, 4096)
             match usr_input:
                 case connect.NAMconcode.Timeout:
                     return datastruct.NAMEtype.ConTimeOut
@@ -199,6 +199,7 @@ class _NAMclientcore(object):
                     return datastruct.NAMEtype.IntFail
                 case _:
                     return usr_input
+        else: return datastruct.NAMEtype.IntFail
 
     @staticmethod
     def send_srv_data(data): # send data to nam server (remember to lock_srv_in_out and free_srv_in_out if needed)
@@ -333,13 +334,12 @@ class _NAMclientcore(object):
         if auth != None:
             usr = datastruct.from_dict(auth)
             if usr != None: return usr
-        while True:
-            _NAMclientcore.send_output("enter auth data:")
-            user_name = _NAMclientcore.get_input("user_name: ")
-            user_pass = _NAMclientcore.get_input(f"password for user {user_name}: ")
-            if user_name == datastruct.NAMEtype.ConTimeOut or user_pass == datastruct.NAMEtype.ConTimeOut: continue
-            if user_name != datastruct.NAMEtype.IntConFail and user_name != "" and user_pass != datastruct.NAMEtype.IntConFail and user_pass != "":
-                break
+        _NAMclientcore.send_output("enter auth data for first login:")
+        user_name = _NAMclientcore.get_input("user_name: ")
+        user_pass = _NAMclientcore.get_input(f"password for user {user_name}: ")
+        if type(user_name) == datastruct.NAMEtype or type(user_pass) == datastruct.NAMEtype:
+            user_name = "None"
+            user_pass = "None"
         _NAMclientcore.send_output("to save auth data, try '- save' or '- help' for more info")
         return datastruct.NAMuser(name=user_name, pass_hash=_NAMclientcore.encode_passwd(user_pass.encode(encoding=connect.get_encoding())))
 
@@ -375,11 +375,8 @@ class _NAMclientcore(object):
             if _NAMclientcore.stop_event.is_set(): break
             if _NAMclientcore.INTERACT: excode = _NAMclientcore.direct_interaction()
             else:
-                _NAMclientcore.current_output_unix_socket = connect.get_ctl_connect()
+                _NAMclientcore.current_output_ctl_conn = connect.get_ctl_connect()
                 excode = _NAMclientcore.ctl_interaction()
-                _NAMclientcore.send_output("END")
-                connect.close_ctl_conn(_NAMclientcore.current_output_unix_socket)
-                _NAMclientcore.current_output_unix_socket = None
             if excode != datastruct.NAMEtype.Success: _NAMclientcore.send_output("Error. The command was not executed")
             match excode:
                 case datastruct.NAMEtype.ConTimeOut:
@@ -388,6 +385,10 @@ class _NAMclientcore(object):
                     _NAMclientcore.send_output("Connection is faulty")
                 case datastruct.NAMEtype.SrvFail:
                     _NAMclientcore.send_output("Unexpected error on server")
+            if _NAMclientcore.INTERACT == False and _NAMclientcore.current_output_ctl_conn != None:
+                _NAMclientcore.send_output("END")
+                connect.close_ctl_conn(_NAMclientcore.current_output_ctl_conn)
+                _NAMclientcore.current_output_ctl_conn = None
 
     @staticmethod
     def test_connection_async():
@@ -505,13 +506,15 @@ help - show this info""")
 
     @staticmethod
     def relogin_to_srv():
-        while True:
-            _NAMclientcore.send_output("enter auth data:")
-            user_name = _NAMclientcore.get_input("user_name: ")
-            user_pass = _NAMclientcore.get_input(f"password for user {user_name}: ")
-            if user_name == datastruct.NAMEtype.ConTimeOut or user_pass == datastruct.NAMEtype.ConTimeOut: continue
-            if user_name != datastruct.NAMEtype.IntConFail and user_name != "" and user_pass != datastruct.NAMEtype.IntConFail and user_pass != "":
-                break
+        _NAMclientcore.send_output("enter auth data:")
+        user_name = _NAMclientcore.get_input("user_name (x to cancel): ")
+        if user_name == "x": return datastruct.NAMEtype.Success
+        user_pass = _NAMclientcore.get_input(f"password for user {user_name} (x to cancel): ")
+        if user_pass == "x": return datastruct.NAMEtype.Success
+        if type(user_name) == datastruct.NAMEtype:
+            return user_name
+        if type(user_pass) == datastruct.NAMEtype:
+            return user_pass
         _NAMclientcore.send_output("to save auth data, try '- save' or '- help' for more info")
         _NAMclientcore.user = datastruct.NAMuser(name=user_name, pass_hash=_NAMclientcore.encode_passwd(user_pass.encode(encoding=connect.get_encoding())))
         return _NAMclientcore.reconnect_to_srv()
@@ -519,15 +522,15 @@ help - show this info""")
     @staticmethod
     def change_model():
         new_set = copy.deepcopy(_NAMclientcore.settings)
-        while True:
-            model = _NAMclientcore.get_input("ai_model (gpt_35_turbo / gpt_35_long / gpt_4 / gpt_4_turbo): ")
-            if type(model) != datastruct.NAMEtype:
-                if model in [aimodel.value for aimodel in datastruct.AImodels]:
-                    new_set.model = datastruct.AImodels(model)
-                    break
-                else:
-                    _NAMclientcore.send_output("no such model available")
-                    return datastruct.NAMEtype.IntFail
+        model = _NAMclientcore.get_input("ai_model (gpt_35_turbo / gpt_35_long / gpt_4 / gpt_4_turbo / x to cancel): ")
+        if model == "x": return datastruct.NAMEtype.Success
+        if type(model) != datastruct.NAMEtype:
+            if model in [aimodel.value for aimodel in datastruct.AImodels]:
+                new_set.model = datastruct.AImodels(model)
+            else:
+                _NAMclientcore.send_output("no such model available")
+                return datastruct.NAMEtype.IntFail
+        else: return model
         _NAMclientcore.lock_srv_in_out()
         sendcode = _NAMclientcore.send_srv_data(new_set)
         if sendcode != datastruct.NAMEtype.Success:

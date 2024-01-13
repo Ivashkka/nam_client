@@ -134,6 +134,7 @@ class _NAMclient(object): #basic clientside networking structure
     def close_ctl_conn(ctl_conn): # close connection over unix named socket
         if not _NAMclient.init: return NAMconcode.Fail
         ctl_conn.close()
+        ctl_conn = None
         return NAMconcode.Success
 
     @staticmethod
@@ -146,6 +147,7 @@ class _NAMclient(object): #basic clientside networking structure
             if os.path.exists(_NAMclient.uspath):
                 print(f"can't remove old {_NAMclient.uspath} socket!")
                 return NAMconcode.Fail
+            return NAMconcode.Success
 
 def init_client(client_settings, interact):
     return _NAMclient.init_socket(client_settings["server_ip"], client_settings["server_port"], client_settings["encoding"], client_settings["unix_socket_path"], interact)
