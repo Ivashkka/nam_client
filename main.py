@@ -9,13 +9,14 @@
 
 # client can be started in interact or backgroud mode
 # interact mode occupies terminal and needed for tests
-# background mode IS NOT SUPPORTED yet (any lines of codes related to unix named sockets are unstable from previous versions)
+# background mode can be safely started with & and uses unix named sockets for communication with ctl instrument
 
-# arguments: python3 main.py <interact> <configs_path>
-# if no <interact> specified, the client starts in the interact mode
+# arguments: python3 main.py <interact/background> <configs_path>
+# if no <interact/background> specified, the client starts in the interact mode
 # if no <configs_path> specified, the client looking for configs in current folder
 
 # to start client in interact mode use `python3 main.py interact .`
+# to start client in background mode use `python3 main.py background <conf_path>`
 
 # any written text is sent to the server, except text which starts with sign `-`
 # to execute any command try `- command` for ex: `- help`
@@ -128,14 +129,16 @@ class _NAMclientcore(object):
     def solve_cli_args():
         if "interact" in sys.argv:
             _NAMclientcore.INTERACT = True
+        if "background" in sys.argv:
+            _NAMclientcore.INTERACT = False
         if len(sys.argv) == 2:
-            if str(sys.argv[1]) != "interact":
+            if str(sys.argv[1]) != "interact" and str(sys.argv[1]) != "background":
                 if dload.test_file(str(sys.argv[1])+"/conf.yaml"):
                     _NAMclientcore.conf_yaml = str(sys.argv[1])+"/conf.yaml"
                     _NAMclientcore.auth_json = str(sys.argv[1])+"/auth.json"
                     return datastruct.NAMEtype.Success
         elif len(sys.argv) == 3:
-            if str(sys.argv[2]) != "interact":
+            if str(sys.argv[2]) != "interact" and str(sys.argv[2]) != "background":
                 if dload.test_file(str(sys.argv[2])+"/conf.yaml"):
                     _NAMclientcore.conf_yaml = str(sys.argv[2])+"/conf.yaml"
                     _NAMclientcore.auth_json = str(sys.argv[2])+"/auth.json"
@@ -170,7 +173,7 @@ class _NAMclientcore(object):
             print(data)
             return datastruct.NAMEtype.Success
         elif _NAMclientcore.current_output_ctl_conn != None:
-            sendcode = connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, data)
+            sendcode = connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, data+"\n")
             match sendcode:
                 case connect.NAMconcode.Timeout:
                     return datastruct.NAMEtype.ConTimeOut
@@ -178,6 +181,9 @@ class _NAMclientcore(object):
                     return datastruct.NAMEtype.IntConFail
                 case connect.NAMconcode.Success:
                     return datastruct.NAMEtype.Success
+                case _:
+                    return datastruct.NAMEtype.IntFail
+        else: return datastruct.NAMEtype.IntFail
 
     @staticmethod
     def get_input(prompt = "nam> "):  # get input from user depending on running mode (input if interact and unix named socket if bg)
