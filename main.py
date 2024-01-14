@@ -61,6 +61,8 @@ import copy
 import signal
 import setproctitle
 import sys
+import inspect
+import os
 
 class _NAMclientcore(object):
 
@@ -86,7 +88,7 @@ class _NAMclientcore(object):
     conf_keys = ["ai_settings", "model", "nam_client", "connect", "encoding", "server_ip", "server_port", "unix_socket_path"]
 
     # dict for matching command and corresponding _NAMclientcore function
-    commads_dict = {"change model": "change_model", "delete con":"delete_context", "info":"show_info",
+    commads_dict = {"change model": "change_model", "delete con":"delete_context", "info":"show_info", "file":"request_with_file",
                     "save":"save_all_settings", "stop":"stop_all", "recon":"reconnect_to_srv", "relog":"relogin_to_srv", "help":"show_help"}
 
     INTERACT = True # interact or background mode
@@ -127,6 +129,8 @@ class _NAMclientcore(object):
 
     @staticmethod
     def solve_cli_args():
+        if "interact" in sys.argv and "background" in sys.argv:
+            return datastruct.NAMEtype.IntFail
         if "interact" in sys.argv:
             _NAMclientcore.INTERACT = True
         if "background" in sys.argv:
@@ -460,12 +464,17 @@ class _NAMclientcore(object):
     def serve_command(command_string):
         if command_string == "": return datastruct.NAMEtype.Success
         if command_string[0] == "-":
-            command = _NAMclientcore.split_command(command_string)
+            command, args = _NAMclientcore.split_command(command_string)
             if command == None:
                 _NAMclientcore.send_output("Wrong command, try help")
                 return datastruct.NAMEtype.IntFail
             ctl_command_func = getattr(_NAMclientcore, _NAMclientcore.commads_dict[command])
-            return ctl_command_func()
+            if len(inspect.signature(ctl_command_func).parameters) > 0:
+                if args == None: return datastruct.NAMEtype.IntFail
+                return ctl_command_func(args)
+            else:
+                if args != None: return datastruct.NAMEtype.IntFail
+                return ctl_command_func()
         else:
             if _NAMclientcore.reconnect_event.is_set():
                 _NAMclientcore.send_output("you can't ask questions for now. Client is reconnecting...")
@@ -476,10 +485,13 @@ class _NAMclientcore(object):
     def split_command(command):
         command_list = command.split(" ")
         command_list.pop(0)
-        if len(command_list) < 1: return None
-        if command_list[0] in _NAMclientcore.commads_dict: return command_list[0]
-        if " ".join(command_list[0:2]) in _NAMclientcore.commads_dict: return " ".join(command_list[0:2])
-        return None
+        com, arg = None, None
+        if len(command_list) < 1: return None, None
+        if command_list[0] in _NAMclientcore.commads_dict: com = command_list[0]
+        if " ".join(command_list[0:2]) in _NAMclientcore.commads_dict: com = " ".join(command_list[0:2])
+        if com == None: return None, None
+        if len(command_list) > len(com.split(" ")): arg = " ".join(command_list[len(com.split(" ")):])
+        return com, arg
 
 
 ########################## Client commands implementations ##########################
@@ -557,6 +569,46 @@ help - show this info""")
         else: return datastruct.NAMEtype.IntFail
 
     @staticmethod
+    def request_with_file(req_string):
+        req = "Answer my question taking into account the contents of the files.\n\n"
+        args = list(filter(None, req_string.split(" ")))
+        current_dir = ""
+        start_id = 0
+        files_count = 0
+        if _NAMclientcore.INTERACT == False:
+            if not dload.check_if_dir(args[0]):
+                _NAMclientcore.send_output("bad data!")
+                return datastruct.NAMEtype.IntFail
+            current_dir = args[0]
+            start_id = 1
+        for f in range(start_id, len(args)):
+            if current_dir != "":
+                if not dload.check_if_abs(args[f]):
+                    fpath = os.path.join(current_dir, args[f])
+                else: fpath = args[f]
+            else:
+                fpath = args[f]
+            if dload.check_if_file(fpath):
+                if not dload.test_file(fpath):
+                    _NAMclientcore.send_output("failed to open file!")
+                    return datastruct.NAMEtype.IntFail
+                req = req + args[f] + " contents:\n"
+                req = req + dload.load_txt(fpath) + "\n\n"
+                files_count += 1
+            else:
+                if files_count < 1:
+                    _NAMclientcore.send_output("at least one file must be specified!")
+                    return datastruct.NAMEtype.IntFail
+                req = req + "my question:\n"
+                req = req + " ".join(args[f:])
+                break
+        if files_count == len(args):
+            _NAMclientcore.send_output("you must specify an actual request too and not just the files")
+            return datastruct.NAMEtype.IntFail
+        print(req)
+        return datastruct.NAMEtype.Success
+
+    @staticmethod
     def show_info():
         if _NAMclientcore.reconnect_event.is_set():
             _NAMclientcore.send_output("client is trying to reconnect...")
@@ -580,6 +632,7 @@ help - show this info""")
 
 def main():
     _NAMclientcore.start_core()
+    exit(0)
 
 if __name__ == "__main__":
     main()

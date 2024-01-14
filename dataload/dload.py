@@ -2,6 +2,7 @@
 
 import yaml
 import json
+import os
 
 class _YAMLload(object): # class for working with yaml files
     @staticmethod
@@ -73,3 +74,12 @@ def load_txt(path):
 def test_file(path): # check if file exists and readable
     if _TXTload.load(path) == None: return False
     else: return True
+
+def check_if_dir(path):
+    return os.path.isdir(path)
+
+def check_if_file(path):
+    return os.path.isfile(path)
+
+def check_if_abs(path):
+    return os.path.isabs(path)
