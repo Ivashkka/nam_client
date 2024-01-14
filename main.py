@@ -63,6 +63,7 @@ import setproctitle
 import sys
 import inspect
 import os
+import queue
 
 class _NAMclientcore(object):
 
@@ -72,7 +73,8 @@ class _NAMclientcore(object):
     conf_is_valid   =   False
     user            =   None            # auth data
     settings        =   None            # session settings (for now just ai model)
-    current_output_ctl_conn = None   # unix named socket used in background mode (NOT WORKING)
+    current_output_ctl_conn = None      # unix named socket used in background mode (NOT WORKING)
+    ctl_output_queue = queue.Queue()    # queue of data not transfered to ctl instrument
 
     input_thread            =   None    # inputs from user
     responses_thread        =   None    # responses from server
@@ -177,17 +179,21 @@ class _NAMclientcore(object):
             print(data)
             return datastruct.NAMEtype.Success
         elif _NAMclientcore.current_output_ctl_conn != None:
-            sendcode = connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, data+"\n")
+            sendcode = connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, "TESTCON")
             match sendcode:
                 case connect.NAMconcode.Timeout:
+                    _NAMclientcore.ctl_output_queue.put(data)
                     return datastruct.NAMEtype.ConTimeOut
                 case connect.NAMconcode.Fail:
+                    _NAMclientcore.ctl_output_queue.put(data)
                     return datastruct.NAMEtype.IntConFail
-                case connect.NAMconcode.Success:
-                    return datastruct.NAMEtype.Success
-                case _:
-                    return datastruct.NAMEtype.IntFail
-        else: return datastruct.NAMEtype.IntFail
+            while not _NAMclientcore.ctl_output_queue.empty():
+                connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, _NAMclientcore.ctl_output_queue.get()+"\n")
+            connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, data+"\n")
+            return datastruct.NAMEtype.Success
+        else:
+            _NAMclientcore.ctl_output_queue.put(data)
+            return datastruct.NAMEtype.IntFail
 
     @staticmethod
     def get_input(prompt = "nam> "):  # get input from user depending on running mode (input if interact and unix named socket if bg)
@@ -248,7 +254,6 @@ class _NAMclientcore(object):
                             return datastruct.NAMEtype.SrvFail
                 elif obj.type == datastruct.NAMDtype.NAMcommand:
                     if obj.command == datastruct.NAMCtype.TestConn and nothing_extra:
-                        print("recursive call")
                         return _NAMclientcore.get_srv_data(nothing_extra)
                     else: return obj
                 else: return obj
@@ -344,14 +349,7 @@ class _NAMclientcore(object):
         if auth != None:
             usr = datastruct.from_dict(auth)
             if usr != None: return usr
-        _NAMclientcore.send_output("enter auth data for first login:")
-        user_name = _NAMclientcore.get_input("user_name: ")
-        user_pass = _NAMclientcore.get_input(f"password for user {user_name}: ")
-        if type(user_name) == datastruct.NAMEtype or type(user_pass) == datastruct.NAMEtype:
-            user_name = "None"
-            user_pass = "None"
-        _NAMclientcore.send_output("to save auth data, try '- save' or '- help' for more info")
-        return datastruct.NAMuser(name=user_name, pass_hash=_NAMclientcore.encode_passwd(user_pass.encode(encoding=connect.get_encoding())))
+        return datastruct.NAMuser(name="None", pass_hash=_NAMclientcore.encode_passwd("None".encode(encoding=connect.get_encoding())))
 
     @staticmethod
     def load_ai_settings():
@@ -386,6 +384,9 @@ class _NAMclientcore(object):
             if _NAMclientcore.INTERACT: excode = _NAMclientcore.direct_interaction()
             else:
                 _NAMclientcore.current_output_ctl_conn = connect.get_ctl_connect()
+                if type(_NAMclientcore.current_output_ctl_conn) == connect.NAMconcode:
+                    _NAMclientcore.current_output_ctl_conn = None
+                    continue
                 excode = _NAMclientcore.ctl_interaction()
             if excode != datastruct.NAMEtype.Success: _NAMclientcore.send_output("Error. The command was not executed")
             match excode:
@@ -443,7 +444,6 @@ class _NAMclientcore(object):
                     _NAMclientcore.send_output("reconnected")
                 if excode == datastruct.NAMEtype.Deny or excode == datastruct.NAMEtype.SrvFail or excode == datastruct.NAMEtype.IntFail:
                     sock_was_connected = True
-                    print("rebinding socket")
 
 
 ########################## Serve inputed command ##########################
@@ -606,8 +606,7 @@ help - show this info""")
         if files_count == (len(args) - start_id):
             _NAMclientcore.send_output("you must specify an actual request too and not just the files")
             return datastruct.NAMEtype.IntFail
-        print(req)
-        return datastruct.NAMEtype.Success
+        return _NAMclientcore.send_srv_data(datastruct.AIrequest(req))
 
     @staticmethod
     def request_with_dir(req_string):
@@ -646,8 +645,7 @@ help - show this info""")
         if dir_count == (len(args) - start_id):
             _NAMclientcore.send_output("you must specify an actual request too and not just the directories")
             return datastruct.NAMEtype.IntFail
-        print(req)
-        return datastruct.NAMEtype.Success
+        return _NAMclientcore.send_srv_data(datastruct.AIrequest(req))
 
     @staticmethod
     def show_info():

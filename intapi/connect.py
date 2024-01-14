@@ -41,6 +41,7 @@ class _NAMclient(object): #basic clientside networking structure
                 _NAMclient.local_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 _NAMclient.local_sock.bind(unix_socket_path)
                 _NAMclient.local_sock.listen(1)
+                _NAMclient.local_sock.settimeout(3)
                 init_stages_codes.append(NAMconcode.Success)
             except:
                 print("failed to bind unix named socket")
@@ -108,6 +109,8 @@ class _NAMclient(object): #basic clientside networking structure
         try:
             ctl_conn, ctl_address = _NAMclient.local_sock.accept()
             return ctl_conn
+        except socket.timeout:
+            return NAMconcode.Timeout
         except Exception as e:
             return NAMconcode.Fail
 
