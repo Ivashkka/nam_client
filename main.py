@@ -88,7 +88,7 @@ class _NAMclientcore(object):
     conf_keys = ["ai_settings", "model", "nam_client", "connect", "encoding", "server_ip", "server_port", "unix_socket_path"]
 
     # dict for matching command and corresponding _NAMclientcore function
-    commads_dict = {"change model": "change_model", "delete con":"delete_context", "info":"show_info", "file":"request_with_file",
+    commads_dict = {"change model": "change_model", "delete con":"delete_context", "info":"show_info", "file":"request_with_file", "dir": "request_with_dir",
                     "save":"save_all_settings", "stop":"stop_all", "recon":"reconnect_to_srv", "relog":"relogin_to_srv", "help":"show_help"}
 
     INTERACT = True # interact or background mode
@@ -483,7 +483,7 @@ class _NAMclientcore(object):
 
     @staticmethod
     def split_command(command):
-        command_list = command.split(" ")
+        command_list = list(filter(None, command.split(" ")))
         command_list.pop(0)
         com, arg = None, None
         if len(command_list) < 1: return None, None
@@ -502,6 +502,7 @@ class _NAMclientcore(object):
 change model - change model for ai
 delete con - delete context
 file <filename> <file2name> <...> text of your request - include file contents to request
+file <dir1> <dir2> <...> text of your request - include directory contents to request
 save - save all settings
 info - show all info
 recon - reconnect to server
@@ -604,6 +605,46 @@ help - show this info""")
                 break
         if files_count == len(args):
             _NAMclientcore.send_output("you must specify an actual request too and not just the files")
+            return datastruct.NAMEtype.IntFail
+        print(req)
+        return datastruct.NAMEtype.Success
+
+    @staticmethod
+    def request_with_dir(req_string):
+        req = "Answer my question taking into account the contents of the directories.\n\n"
+        args = list(filter(None, req_string.split(" ")))
+        current_dir = ""
+        start_id = 0
+        dir_count = 0
+        if _NAMclientcore.INTERACT == False:
+            if not dload.check_if_dir(args[0]):
+                _NAMclientcore.send_output("bad data!")
+                return datastruct.NAMEtype.IntFail
+            current_dir = args[0]
+            start_id = 1
+        for d in range(start_id, len(args)):
+            if current_dir != "":
+                if not dload.check_if_abs(args[d]):
+                    dpath = os.path.join(current_dir, args[d])
+                else: dpath = args[d]
+            else:
+                dpath = args[d]
+            if dload.check_if_dir(dpath):
+                if dload.get_dir_ls(dpath) == None:
+                    _NAMclientcore.send_output("failed to read dir!")
+                    return datastruct.NAMEtype.IntFail
+                req = req + args[d] + " contents:\n"
+                req = req + dload.get_dir_ls(dpath) + "\n\n"
+                dir_count += 1
+            else:
+                if dir_count < 1:
+                    _NAMclientcore.send_output("at least one directory must be specified!")
+                    return datastruct.NAMEtype.IntFail
+                req = req + "my question:\n"
+                req = req + " ".join(args[d:])
+                break
+        if dir_count == len(args):
+            _NAMclientcore.send_output("you must specify an actual request too and not just the directories")
             return datastruct.NAMEtype.IntFail
         print(req)
         return datastruct.NAMEtype.Success

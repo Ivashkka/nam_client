@@ -83,3 +83,8 @@ def check_if_file(path):
 
 def check_if_abs(path):
     return os.path.isabs(path)
+
+def get_dir_ls(path):
+    try:
+        return "\n".join(os.listdir(path))
+    except: return None
