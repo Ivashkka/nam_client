@@ -187,10 +187,13 @@ class _NAMclientcore(object):
                 case connect.NAMconcode.Fail:
                     _NAMclientcore.ctl_output_queue.put(data)
                     return datastruct.NAMEtype.IntConFail
-            while not _NAMclientcore.ctl_output_queue.empty():
-                qdata = _NAMclientcore.ctl_output_queue.get()
-                if "END" not in qdata or "IEN" not in qdata:
-                    connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, qdata+"\n")
+            if not _NAMclientcore.ctl_output_queue.empty():
+                connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, "untransmitted data from previous requests:\n")
+                while not _NAMclientcore.ctl_output_queue.empty():
+                    qdata = _NAMclientcore.ctl_output_queue.get()
+                    if "END" not in qdata and "IEN" not in qdata:
+                        connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, qdata+"\n")
+                connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, "------------------------------------------\n\n\n")
             connect.send_ctl_answer(_NAMclientcore.current_output_ctl_conn, data+"\n")
             return datastruct.NAMEtype.Success
         else:
