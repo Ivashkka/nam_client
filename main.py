@@ -603,7 +603,7 @@ help - show this info""")
                 req = req + "my question:\n"
                 req = req + " ".join(args[f:])
                 break
-        if files_count == len(args):
+        if files_count == (len(args) - start_id):
             _NAMclientcore.send_output("you must specify an actual request too and not just the files")
             return datastruct.NAMEtype.IntFail
         print(req)
@@ -643,7 +643,7 @@ help - show this info""")
                 req = req + "my question:\n"
                 req = req + " ".join(args[d:])
                 break
-        if dir_count == len(args):
+        if dir_count == (len(args) - start_id):
             _NAMclientcore.send_output("you must specify an actual request too and not just the directories")
             return datastruct.NAMEtype.IntFail
         print(req)
