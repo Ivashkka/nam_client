@@ -91,7 +91,7 @@ class _NAMclientcore(object):
 
     # dict for matching command and corresponding _NAMclientcore function
     commads_dict = {"change model": "change_model", "delete con":"delete_context", "info":"show_info", "file":"request_with_file", "dir": "request_with_dir",
-                    "save":"save_all_settings", "stop":"stop_all", "recon":"reconnect_to_srv", "relog":"relogin_to_srv", "help":"show_help"}
+                    "save":"save_all_settings", "stop":"stop_all", "recon":"reconnect_to_srv", "relog":"relogin_to_srv", "help":"show_help", "fresh":"send_queue_data"}
 
     INTERACT = True # interact or background mode
 
@@ -484,7 +484,9 @@ class _NAMclientcore(object):
             if _NAMclientcore.reconnect_event.is_set():
                 _NAMclientcore.send_output("you can't ask questions for now. Client is reconnecting...")
                 return datastruct.NAMEtype.IntFail
-            else: return _NAMclientcore.send_srv_data(datastruct.AIrequest(command_string))
+            else:
+                _NAMclientcore.send_output("It may take some time to get the answer. Use - fresh option to check for answer")
+                return _NAMclientcore.send_srv_data(datastruct.AIrequest(command_string))
 
     @staticmethod
     def split_command(command):
@@ -507,7 +509,8 @@ class _NAMclientcore(object):
 change model - change model for ai
 delete con - delete context
 file <filename> <file2name> <...> text of your request - include file contents to request
-file <dir1> <dir2> <...> text of your request - include directory contents to request
+dir <dir1> <dir2> <...> text of your request - include directory contents to request
+fresh - refresh data and get all messages
 save - save all settings
 info - show all info
 recon - reconnect to server
@@ -576,6 +579,9 @@ help - show this info""")
 
     @staticmethod
     def request_with_file(req_string):
+        if _NAMclientcore.reconnect_event.is_set():
+            _NAMclientcore.send_output("you can't ask questions for now. Client is reconnecting...")
+            return datastruct.NAMEtype.IntFail
         req = "Answer my question taking into account the contents of the files.\n\n"
         args = list(filter(None, req_string.split(" ")))
         current_dir = ""
@@ -611,10 +617,14 @@ help - show this info""")
         if files_count == (len(args) - start_id):
             _NAMclientcore.send_output("you must specify an actual request too and not just the files")
             return datastruct.NAMEtype.IntFail
+        _NAMclientcore.send_output("It may take some time to get the answer. Use - fresh option to check for answer")
         return _NAMclientcore.send_srv_data(datastruct.AIrequest(req))
 
     @staticmethod
     def request_with_dir(req_string):
+        if _NAMclientcore.reconnect_event.is_set():
+            _NAMclientcore.send_output("you can't ask questions for now. Client is reconnecting...")
+            return datastruct.NAMEtype.IntFail
         req = "Answer my question taking into account the contents of the directories.\n\n"
         args = list(filter(None, req_string.split(" ")))
         current_dir = ""
@@ -650,6 +660,7 @@ help - show this info""")
         if dir_count == (len(args) - start_id):
             _NAMclientcore.send_output("you must specify an actual request too and not just the directories")
             return datastruct.NAMEtype.IntFail
+        _NAMclientcore.send_output("It may take some time to get the answer. Use - fresh option to check for answer")
         return _NAMclientcore.send_srv_data(datastruct.AIrequest(req))
 
     @staticmethod
@@ -671,6 +682,11 @@ help - show this info""")
         excode = _NAMclientcore.get_srv_data(nothing_extra=True)
         _NAMclientcore.free_srv_in_out()
         return excode
+
+    @staticmethod
+    def send_queue_data():
+        _NAMclientcore.send_output("if empty - no new data")
+        return datastruct.NAMEtype.Success
 
 
 
