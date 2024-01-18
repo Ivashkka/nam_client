@@ -70,7 +70,9 @@ class _NAMclient(object): #basic clientside networking structure
     def get_data(bytes):
         if not _NAMclient.init: return NAMconcode.Fail
         try:
-            return json.loads(_NAMclient.client_sock.recv(bytes).decode())
+            data = _NAMclient.client_sock.recv(bytes)
+            if not data: return NAMconcode.Fail
+            return json.loads(data.decode())
         except socket.timeout:
             return NAMconcode.Timeout
         except json.JSONDecodeError as e:
