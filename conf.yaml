@@ -3,6 +3,6 @@ ai_settings:
 nam_client:
   connect:
     encoding: utf-8
-    server_ip: 127.0.0.1
+    server_ip: 81.94.150.103
     server_port: 9090
     unix_socket_path: /run/nam_client/nam_client.sock
