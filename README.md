@@ -13,7 +13,7 @@
 <p><code>git clone https://github.com/Ivashkka/nam_client.git</code></p>
 <p><code>cd nam_client</code></p>
 <p>start make install from root:</p>
-<p><code>sudo make install</code></p>
+<p><code>sudo make install; cd ~</code></p>
 <p>wait until instalation finishes</p>
 <p>after installation is complete you can start nam_client:</p>
 <p><code>systemctl start nam_client</code></p>
